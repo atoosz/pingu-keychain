@@ -2,7 +2,9 @@
 
 A tiny penguin on a 0.96" OLED keychain that shows what you're doing on your Mac. When you're coding he types on a laptop, when you're watching something he eats popcorn, and he naps when the Mac sleeps. An ESP32 drives the screen. The Mac sends him your current activity over Bluetooth LE, with no cable to the laptop.
 
-![All animations](sprites/preview.png)
+[![Pingu demo](docs/demo.gif)](docs/pingu-demo.mp4)
+
+▶ **[Watch the full demo with sound](docs/pingu-demo.mp4)** (37 s)
 
 | State | When | Pingu |
 |---|---|---|
@@ -17,6 +19,8 @@ A tiny penguin on a 0.96" OLED keychain that shows what you're doing on your Mac
 | sleepy | idle/chill between 00:00 and 04:59 | yawns |
 
 The states are listed in priority order: if two apply at once, the higher one wins.
+
+![Every animation frame](sprites/preview.png)
 
 ## Hardware
 
@@ -97,6 +101,17 @@ Pingu only accepts an update within 2 minutes of that button hold, so nobody nea
 - **Which apps and sites count as what, idle time, time-of-day hours:** these are at the top of `mac/Pingu.swift`. Run `mac/install.sh` after editing.
 - **Brightness levels, burn-in timings, pins:** these are constants at the top of `firmware/src/main.cpp`.
 
+## Demo video
+
+The video is made with [Remotion](https://www.remotion.dev). It draws the real `sprites/*.txt` frames, and the chiptune soundtrack is synthesized by `demo/scripts/audio.py`. Rendering it needs Node 18+ and Python 3:
+
+```bash
+cd demo && npm install
+npm run render   # out/pingu-demo.mp4 (16:9) + out/pingu-demo-square.mp4 (1:1)
+npm run gif      # out/pingu-demo.gif (README preview)
+npm run studio   # live preview / editing
+```
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -118,6 +133,7 @@ Pingu only accepts an update within 2 minutes of that button hold, so nobody nea
 firmware/   PlatformIO project (ESP32, Arduino framework) + ota.sh
 mac/        Swift agent, Info.plist, build/install/uninstall scripts
 sprites/    editable ASCII frames, converter, preview
+demo/       Remotion project for the demo video (docs/ has the rendered files)
 ```
 
 ## License

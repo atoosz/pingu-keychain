@@ -1,0 +1,20 @@
+{
+  "name": "pingu-demo",
+  "private": true,
+  "scripts": {
+    "assets": "node scripts/sprites.mjs && python3 scripts/audio.py",
+    "studio": "npm run assets && remotion studio",
+    "render": "npm run assets && remotion render PinguDemo out/pingu-demo.mp4 && remotion render PinguDemoSquare out/pingu-demo-square.mp4",
+    "gif": "npm run assets && remotion render PinguDemo out/pingu-demo.gif --codec=gif --frames=110-829 --every-nth-frame=3 --scale=0.4"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.541",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.541"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "typescript": "5.6.3"
+  }
+}
