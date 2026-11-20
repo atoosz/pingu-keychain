@@ -1,0 +1,5 @@
+.pio/
+mac/build/
+.DS_Store
+*.png
+!sprites/preview.png
