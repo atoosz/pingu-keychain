@@ -141,6 +141,8 @@ final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
     func send(_ s: State) {
         if s != last { NSLog("Pingu state: \(s)"); last = s }
+        // Bluetooth power-cycles drop connections without a callback; recover instead of sticking
+        if peripheral.map({ $0.state == .disconnected }) ?? !central.isScanning { reset() }
         guard let p = peripheral, let c = stateChar, p.state == .connected else { return }
         p.writeValue(Data([s.rawValue]), for: c, type: .withoutResponse)
     }
@@ -171,7 +173,7 @@ final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
     func centralManagerDidUpdateState(_ c: CBCentralManager) {
         NSLog("Bluetooth state: \(c.state.rawValue)")
-        scan()
+        reset()
     }
 
     func centralManager(_ c: CBCentralManager, didDiscover p: CBPeripheral, advertisementData: [String: Any], rssi: NSNumber) {
