@@ -26,4 +26,11 @@ cat > $PLIST <<EOF
 </dict></plist>
 EOF
 launchctl bootstrap gui/$UID $PLIST
+
+# `pingu text "..."` from any terminal: a symlink to the app's binary on PATH
+BIN=/opt/homebrew/bin
+[[ -d $BIN && -w $BIN ]] || { BIN=~/.local/bin; mkdir -p $BIN; }
+ln -sf $APP/Contents/MacOS/Pingu $BIN/pingu
+[[ ":$PATH:" == *":$BIN:"* ]] || echo "Note: add $BIN to your PATH to use the pingu command."
+
 echo "Pingu installed and running. Logs: /tmp/pingu.log"

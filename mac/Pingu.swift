@@ -8,6 +8,7 @@ enum State: UInt8 { case sleep, idle, coding, video, music, meeting, chill, coff
 let serviceUUID = CBUUID(string: "6e9b0001-5c1a-4f6e-9a3d-50494e475531")
 let stateUUID = CBUUID(string: "6e9b0002-5c1a-4f6e-9a3d-50494e475531")
 let otaUUID = CBUUID(string: "6e9b0003-5c1a-4f6e-9a3d-50494e475531")
+let textUUID = CBUUID(string: "6e9b0004-5c1a-4f6e-9a3d-50494e475531")
 
 let codingApps: Set<String> = [
     "com.microsoft.VSCode", "com.todesktop.230313mzl4w4u92" /* Cursor */, "com.apple.dt.Xcode",
@@ -74,10 +75,63 @@ func activity() -> State {
     return .chill
 }
 
+// ---------- custom text (`pingu text`) ----------
+// Same rules as validText() in firmware/src/main.cpp.
+let textMax = 20, wordMax = 9
+let textRequest = Notification.Name("local.pingu.text.request")
+let textReply = Notification.Name("local.pingu.text.reply")
+
+/// Returns the cleaned-up text, or an error message.
+enum TextCheck { case ok(String), bad(String) }
+
+func checkText(_ raw: String) -> TextCheck {
+    let t = raw.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    if t.isEmpty { return .bad("Text is empty (use --clear to remove it)") }
+    if let bad = t.unicodeScalars.first(where: { $0.value < 0x20 || $0.value > 0x7E }) {
+        return .bad("Only plain ASCII letters, digits and symbols work on the screen (not '\(bad)')")
+    }
+    if t.count > textMax { return .bad("Too long: \(t.count) characters (max \(textMax))") }
+    if let w = t.components(separatedBy: " ").first(where: { $0.count > wordMax }) {
+        return .bad("'\(w)' is too long: \(w.count) characters (max \(wordMax) per word)")
+    }
+    return .ok(t)
+}
+
+/// `pingu text "hi"` / `pingu text --clear`: hand the text to the running agent, which owns the BLE link.
+func runTextCommand(_ args: [String]) -> Never {
+    let text: String
+    switch (args.count, args.first) {
+    case (1, "--clear"): text = ""
+    case (1, let a?):
+        switch checkText(a) {
+        case .ok(let t): text = t
+        case .bad(let msg): print(msg); exit(1)
+        }
+    default: print("usage: pingu text \"your text\"   |   pingu text --clear"); exit(2)
+    }
+    let id = UUID().uuidString
+    var result: String??  // nil = no reply yet; .some(nil) = ok; .some(msg) = error
+    let dnc = DistributedNotificationCenter.default()
+    let obs = dnc.addObserver(forName: textReply, object: id, queue: .main) { n in
+        result = .some(n.userInfo?["error"] as? String)
+    }
+    dnc.postNotificationName(textRequest, object: id, userInfo: ["text": text], deliverImmediately: true)
+    let deadline = Date().addingTimeInterval(4)
+    while result == nil && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+    dnc.removeObserver(obs)
+    switch result {
+    case .some(nil): print(text.isEmpty ? "Cleared. Pingu is back." : "Pingu now shows: \(text)"); exit(0)
+    case .some(let msg?): print(msg); exit(1)
+    case nil: print("Pingu is not connected"); exit(1)  // agent not running or not answering
+    }
+}
+
 final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     var central: CBCentralManager!
     var peripheral: CBPeripheral?
     var stateChar: CBCharacteristic?
+    var textChar: CBCharacteristic?
+    var textReplyTo: String?  // request id waiting for the text write to be acknowledged
     var last: State?
 
     override init() {
@@ -89,6 +143,25 @@ final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         if s != last { NSLog("Pingu state: \(s)"); last = s }
         guard let p = peripheral, let c = stateChar, p.state == .connected else { return }
         p.writeValue(Data([s.rawValue]), for: c, type: .withoutResponse)
+    }
+
+    func sendText(_ text: String, id: String) {
+        guard let p = peripheral, let c = textChar, p.state == .connected, textReplyTo == nil else {
+            return replyText(id, error: textReplyTo == nil ? "Pingu is not connected" : "Busy, try again")
+        }
+        textReplyTo = id
+        p.writeValue(Data(text.utf8), for: c, type: .withResponse)
+    }
+
+    func replyText(_ id: String, error: String?) {
+        DistributedNotificationCenter.default().postNotificationName(
+            textReply, object: id, userInfo: error.map { ["error": $0] }, deliverImmediately: true)
+    }
+
+    func peripheral(_ p: CBPeripheral, didWriteValueFor c: CBCharacteristic, error: Error?) {
+        guard c.uuid == textUUID, let id = textReplyTo else { return }
+        textReplyTo = nil
+        replyText(id, error: error.map { "Pingu didn't accept it: \($0.localizedDescription)" })
     }
 
     func scan() {
@@ -119,14 +192,18 @@ final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         reset()
     }
 
-    func reset() { peripheral = nil; stateChar = nil; scan() }
+    func reset() {
+        if let id = textReplyTo { textReplyTo = nil; replyText(id, error: "Pingu is not connected") }
+        peripheral = nil; stateChar = nil; textChar = nil; scan()
+    }
 
     func peripheral(_ p: CBPeripheral, didDiscoverServices error: Error?) {
-        p.services?.filter { $0.uuid == serviceUUID }.forEach { p.discoverCharacteristics([stateUUID], for: $0) }
+        p.services?.filter { $0.uuid == serviceUUID }.forEach { p.discoverCharacteristics([stateUUID, textUUID], for: $0) }
     }
 
     func peripheral(_ p: CBPeripheral, didDiscoverCharacteristicsFor s: CBService, error: Error?) {
         stateChar = s.characteristics?.first { $0.uuid == stateUUID }
+        textChar = s.characteristics?.first { $0.uuid == textUUID }  // nil on firmware older than text mode
         if let st = last { send(st) }
     }
 }
@@ -228,6 +305,9 @@ final class Uploader: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     func peripheralIsReady(toSendWriteWithoutResponse p: CBPeripheral) { pump() }
 }
 
+let argv = CommandLine.arguments
+if argv.count >= 2 && argv[1] == "text" { runTextCommand(Array(argv.dropFirst(2))) }
+
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 
@@ -239,6 +319,14 @@ if let i = CommandLine.arguments.firstIndex(of: "--ota"), i + 1 < CommandLine.ar
 }
 
 let link = Link()
+DistributedNotificationCenter.default().addObserver(forName: textRequest, object: nil, queue: .main) { n in
+    guard let id = n.object as? String, let raw = n.userInfo?["text"] as? String else { return }
+    if raw.isEmpty { return link.sendText("", id: id) }
+    switch checkText(raw) {  // re-check: any local process can post this notification
+    case .ok(let t): link.sendText(t, id: id)
+    case .bad(let msg): link.replyText(id, error: msg)
+    }
+}
 
 let nc = NSWorkspace.shared.notificationCenter
 nc.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { _ in displaysAsleep = true; link.send(.sleep) }

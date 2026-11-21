@@ -49,7 +49,7 @@ The buttons use the ESP32's internal pull-ups, and pressing a button connects th
 | Button | Does |
 |---|---|
 | K1 / K2 | brightness up / down (off → dim → medium → bright) |
-| K3 | show / hide the Bluetooth icon (solid when connected, blinking when not) |
+| K3 | show / hide the Bluetooth icon (solid when connected, blinking when not). **Hold 1 s** to switch between your text and Pingu |
 | K4 | poke Pingu (also wakes the screen when it's off). **Hold 3 s** to allow a firmware update |
 
 Brightness and the icon setting survive power-off.
@@ -80,6 +80,23 @@ brew install platformio         # ESP32 toolchain (or: pipx install platformio)
 4. Unplug the ESP32 from the Mac and power it from the power bank. Within a few seconds the icon stops blinking and Pingu shows what you're doing.
 
 To remove it: `mac/uninstall.sh`.
+
+## Custom text
+
+Put your own text on the screen instead of Pingu, like a little name tag for your bag:
+
+```bash
+pingu text "hello world"
+pingu text --clear          # back to Pingu
+```
+
+- The text is sized automatically: about 5 characters on one huge line, up to **20 characters** on 3–4 smaller lines. It wraps at spaces and bobs gently in place.
+- Plain ASCII only, and no single word longer than 9 characters (so words never get split). Anything else is refused with a message.
+- It's saved on the keychain, so it stays when the Mac sleeps or is out of range, or the power bank is unplugged. The screen never turns itself off in text mode, but K2 can still turn it off.
+- **Hold K3 for 1 s** to switch between the text and Pingu without deleting the text. K4 still pokes Pingu, then goes back to the text.
+- The keychain has to be connected to the Mac when you run the command. If it isn't, you get `Pingu is not connected`.
+
+`mac/install.sh` puts the `pingu` command in `/opt/homebrew/bin` (or `~/.local/bin` if you don't have Homebrew).
 
 ## Updating the firmware wirelessly
 
