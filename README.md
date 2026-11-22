@@ -24,7 +24,7 @@ The states are listed in priority order: if two apply at once, the higher one wi
 
 ## Hardware
 
-- An **ESP32 dev board** with Bluetooth, i.e. a classic ESP32 such as an ESP32-WROOM-32 DevKit (tested on an ESP32-D0WD-V3). The ESP32-S2 has no Bluetooth.
+- An **ESP32 dev board** with Bluetooth, i.e. a classic ESP32 such as an ESP32-WROOM-32 DevKit (tested on an ESP32-D0WD-V3).
 - A **0.96" 128×64 I2C OLED, SSD1306**. The version used here has 8 pins: GND, VCC, SCL, SDA, and 4 buttons K1–K4. A plain 4-pin module also works; you just won't have the buttons.
 - A **USB power bank** (or any USB power source).
 - Jumper wires.
